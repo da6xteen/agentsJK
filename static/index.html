@@ -20,6 +20,11 @@
         .ad-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .ad-text { white-space: pre-wrap; font-size: 0.95rem; line-height: 1.5; }
         .ad-img-preview { max-height: 220px; object-fit: cover; border-radius: 6px; }
+        .quote-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 8px 12px; font-size: 0.9rem; margin-top: 6px; border-radius: 0 4px 4px 0; }
+        .badge-green { background-color: #198754; color: white; }
+        .badge-yellow { background-color: #ffc107; color: black; }
+        .badge-red { background-color: #dc3545; color: white; }
+        .ai-tag { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
     </style>
 </head>
 <body>
@@ -30,8 +35,8 @@
                 <i class="bi bi-shield-exclamation text-warning fs-3 me-2"></i>
                 <span>SAQ QURYLYS</span>
             </a>
-            <span class="navbar-text text-light">
-                <i class="bi bi-cpu me-1"></i> Агент 1: Сборщик объявлений (Raw Ad Collector)
+            <span class="navbar-text text-light small">
+                <i class="bi bi-cpu me-1"></i> Агент 1: Сборщик | Агент 2: Сопоставитель и Экстрактор платежей
             </span>
         </div>
     </nav>
@@ -42,19 +47,19 @@
         <div class="card shadow-sm mb-4">
             <div class="card-body">
                 <div class="row g-3 align-items-center">
-                    <div class="col-md-4 d-flex gap-2">
+                    <div class="col-md-5 d-flex gap-2">
                         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#collectModal">
                             <i class="bi bi-cloud-arrow-down me-1"></i> Собрать объявления
                         </button>
                         <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#manualModal">
-                            <i class="bi bi-plus-lg me-1"></i> Добавить вручную / Скриншот
+                            <i class="bi bi-plus-lg me-1"></i> Добавить вручную
                         </button>
                     </div>
 
-                    <div class="col-md-8">
+                    <div class="col-md-7">
                         <form id="filterForm" class="row g-2 align-items-center justify-content-md-end">
                             <div class="col-auto">
-                                <label class="col-form-label fw-bold">Площадка:</label>
+                                <label class="col-form-label fw-bold small">Площадка:</label>
                             </div>
                             <div class="col-auto">
                                 <select class="form-select form-select-sm" id="filterPlatform" onchange="loadAds()">
@@ -68,7 +73,7 @@
                             </div>
 
                             <div class="col-auto">
-                                <label class="col-form-label fw-bold ms-2">Статус:</label>
+                                <label class="col-form-label fw-bold small ms-2">Статус:</label>
                             </div>
                             <div class="col-auto">
                                 <select class="form-select form-select-sm" id="filterStatus" onchange="loadAds()">
@@ -82,7 +87,7 @@
                             <div class="col-auto">
                                 <div class="form-check ms-2">
                                     <input class="form-check-input" type="checkbox" id="filterDemo" onchange="loadAds()">
-                                    <label class="form-check-label" for="filterDemo">
+                                    <label class="form-check-label small" for="filterDemo">
                                         Только ДЕМО
                                     </label>
                                 </div>
@@ -214,6 +219,8 @@
                 const response = await fetch(url);
                 const ads = await response.json();
                 renderAds(ads);
+                // Load existing hypotheses for loaded ads
+                ads.forEach(ad => loadHypotheses(ad.id));
             } catch (err) {
                 console.error("Error loading ads:", err);
                 document.getElementById('adFeed').innerHTML = `
@@ -246,8 +253,8 @@
                     : '';
 
                 return `
-                    <div class="col-md-6 col-lg-4">
-                        <div class="card h-100 shadow-sm ad-card">
+                    <div class="col-md-6 col-lg-6">
+                        <div class="card h-100 shadow-sm ad-card" id="card-${ad.id}">
                             <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
                                 <div>
                                     ${demoBadge}
@@ -259,11 +266,25 @@
                                 </small>
                             </div>
                             <div class="card-body">
-                                <div class="fw-bold mb-1 text-primary text-truncate">
-                                    <i class="bi bi-person-circle me-1"></i>${escapeHtml(ad.account || 'Unknown')}
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div class="fw-bold text-primary text-truncate">
+                                        <i class="bi bi-person-circle me-1"></i>${escapeHtml(ad.account || 'Unknown')}
+                                    </div>
+                                    <div id="risk-badge-${ad.id}">
+                                        <!-- Risk Score Badge injected here -->
+                                    </div>
                                 </div>
-                                <p class="card-text ad-text mt-2">${escapeHtml(ad.text)}</p>
+
+                                <p class="card-text ad-text mt-2" id="text-${ad.id}">${escapeHtml(ad.text)}</p>
                                 ${imageHtml}
+
+                                <!-- Agent 2 Analysis Panel -->
+                                <div id="analysis-panel-${ad.id}" class="mt-3 pt-2 border-top">
+                                    <button class="btn btn-sm btn-outline-secondary w-100 mb-2" onclick="triggerAnalysis('${ad.id}')">
+                                        <i class="bi bi-cpu me-1"></i> Запустить Агент 2 (Анализ ИИ & Сопоставитель)
+                                    </button>
+                                    <div id="hypotheses-list-${ad.id}"></div>
+                                </div>
                             </div>
                             <div class="card-footer bg-white border-top-0 d-flex justify-content-between align-items-center">
                                 <a href="${escapeHtml(ad.url)}" target="_blank" class="btn btn-sm btn-outline-primary">
@@ -275,6 +296,160 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        async function triggerAnalysis(adId) {
+            const container = document.getElementById(`hypotheses-list-${adId}`);
+            container.innerHTML = `
+                <div class="text-center py-2 text-primary">
+                    <div class="spinner-border spinner-border-sm me-1" role="status"></div>
+                    <small>Выполняется анализ Агента 2...</small>
+                </div>`;
+
+            try {
+                const response = await fetch(`/api/ads/${adId}/analyze`, { method: 'POST' });
+                const data = await response.json();
+                if (response.ok) {
+                    loadHypotheses(adId);
+                } else {
+                    container.innerHTML = `<div class="alert alert-danger py-1 small">${data.detail || 'Ошибка анализа'}</div>`;
+                }
+            } catch (err) {
+                container.innerHTML = `<div class="alert alert-danger py-1 small">Ошибка сети: ${err.message}</div>`;
+            }
+        }
+
+        async function loadHypotheses(adId) {
+            try {
+                const response = await fetch(`/api/ads/${adId}/hypotheses`);
+                if (!response.ok) return;
+                const data = await response.json();
+
+                renderRiskBadge(adId, data.risk_score, data.risk_zone, data.risk_label);
+                renderHypotheses(adId, data.hypotheses, data.related_ads);
+            } catch (err) {
+                console.error("Failed to load hypotheses:", err);
+            }
+        }
+
+        function renderRiskBadge(adId, score, zone, label) {
+            const badgeContainer = document.getElementById(`risk-badge-${adId}`);
+            if (!badgeContainer) return;
+
+            let zoneClass = 'badge-green';
+            if (zone === 'yellow') zoneClass = 'badge-yellow';
+            if (zone === 'red') zoneClass = 'badge-red';
+
+            badgeContainer.innerHTML = `
+                <span class="badge ${zoneClass} px-2 py-1" title="${escapeHtml(label)}">
+                    <i class="bi bi-shield-fill-exclamation me-1"></i>Риск: ${score} б. (${zone.toUpperCase()})
+                </span>
+            `;
+        }
+
+        function renderHypotheses(adId, hypotheses, relatedAds) {
+            const container = document.getElementById(`hypotheses-list-${adId}`);
+            if (!container) return;
+
+            if (!hypotheses || hypotheses.length === 0) {
+                container.innerHTML = `<small class="text-muted d-block text-center py-1">Гипотезы не сформированы</small>`;
+                return;
+            }
+
+            let html = `<div class="d-flex flex-column gap-2">`;
+
+            hypotheses.forEach(h => {
+                const isLlm = h.source === 'llm';
+                const sourceBadge = isLlm
+                    ? `<span class="badge bg-purple text-white ai-tag bg-primary"><i class="bi bi-stars me-1"></i>Гипотеза ИИ</span>`
+                    : `<span class="badge bg-secondary ai-tag"><i class="bi bi-gear me-1"></i>Rules</span>`;
+
+                let statusBadge = `<span class="badge bg-warning text-dark ms-1">Ожидает</span>`;
+                if (h.status === 'accepted') statusBadge = `<span class="badge bg-success ms-1">Принято</span>`;
+                if (h.status === 'rejected') statusBadge = `<span class="badge bg-secondary ms-1">Отклонено</span>`;
+
+                const quoteHtml = h.evidence_quote
+                    ? `<div class="quote-box"><strong>Цитата:</strong> "${escapeHtml(h.evidence_quote)}"</div>`
+                    : '';
+
+                let buttonsHtml = '';
+                if (h.status === 'pending') {
+                    buttonsHtml = `
+                        <div class="mt-2 d-flex gap-2">
+                            <button class="btn btn-sm btn-success py-0 px-2" onclick="acceptHypothesis('${h.id}', '${adId}')">
+                                <i class="bi bi-check-lg me-1"></i>Принять
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="rejectHypothesis('${h.id}', '${adId}')">
+                                <i class="bi bi-x-lg me-1"></i>Отклонить
+                            </button>
+                        </div>
+                    `;
+                }
+
+                html += `
+                    <div class="card card-body p-2 bg-light border-0 shadow-none">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                ${sourceBadge}
+                                ${statusBadge}
+                                <span class="fw-bold small ms-1">${escapeHtml(h.title)}</span>
+                            </div>
+                            <small class="text-muted">conf: ${(h.confidence * 100).toFixed(0)}%</small>
+                        </div>
+                        <div class="small text-secondary mt-1">${escapeHtml(h.description)}</div>
+                        ${quoteHtml}
+                        ${buttonsHtml}
+                    </div>
+                `;
+            });
+
+            if (relatedAds && relatedAds.length > 0) {
+                html += `
+                    <div class="mt-2 p-2 bg-white rounded border">
+                        <small class="fw-bold text-muted d-block mb-1"><i class="bi bi-diagram-3 me-1"></i>Связанные объявления (${relatedAds.length}):</small>
+                        <ul class="list-unstyled mb-0 small">
+                            ${relatedAds.map(r => `<li><a href="${escapeHtml(r.url)}" target="_blank" class="text-decoration-none">• ${escapeHtml(r.text.substring(0, 60))}...</a></li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        async function acceptHypothesis(hypId, adId) {
+            try {
+                const res = await fetch(`/api/hypotheses/${hypId}/accept`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ author: "Аналитик MIO" })
+                });
+                if (res.ok) {
+                    loadHypotheses(adId);
+                } else {
+                    alert('Ошибка при принятии гипотезы');
+                }
+            } catch (err) {
+                alert('Сетевая ошибка: ' + err.message);
+            }
+        }
+
+        async function rejectHypothesis(hypId, adId) {
+            try {
+                const res = await fetch(`/api/hypotheses/${hypId}/reject`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ author: "Аналитик MIO" })
+                });
+                if (res.ok) {
+                    loadHypotheses(adId);
+                } else {
+                    alert('Ошибка при отклонении гипотезы');
+                }
+            } catch (err) {
+                alert('Сетевая ошибка: ' + err.message);
+            }
         }
 
         async function runCollector() {

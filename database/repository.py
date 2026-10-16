@@ -1,6 +1,9 @@
+import datetime
+import json
 import os
 import sqlite3
-from typing import List, Optional
+import uuid
+from typing import List, Optional, Dict, Any
 from agents.collector.models import RawAd
 
 class AdRepository:
@@ -9,6 +12,7 @@ class AdRepository:
             db_path = os.getenv("DB_PATH", "saq_qurylys.db")
         self.db_path = db_path
         self._init_db()
+        self._seed_demo_data()
 
     def _get_connection(self):
         conn = sqlite3.connect(self.db_path)
@@ -18,6 +22,7 @@ class AdRepository:
     def _init_db(self):
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            # Ads table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS ads (
                     id TEXT PRIMARY KEY,
@@ -34,13 +39,116 @@ class AdRepository:
                     dedup_hash TEXT UNIQUE NOT NULL
                 )
             """)
+
+            # Developers table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS developers (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    bin TEXT NOT NULL UNIQUE,
+                    contact TEXT
+                )
+            """)
+
+            # Complexes (ЖК) table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS complexes (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    developer_id TEXT,
+                    address TEXT,
+                    district TEXT,
+                    city TEXT,
+                    risk_score INTEGER DEFAULT 0,
+                    risk_zone TEXT DEFAULT 'green',
+                    FOREIGN KEY(developer_id) REFERENCES developers(id)
+                )
+            """)
+
+            # Hypotheses table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS hypotheses (
+                    id TEXT PRIMARY KEY,
+                    ad_id TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    evidence_quote TEXT,
+                    confidence REAL NOT NULL,
+                    source TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    payload_json TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(ad_id) REFERENCES ads(id)
+                )
+            """)
+
+            # Audit logs table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id TEXT PRIMARY KEY,
+                    ad_id TEXT NOT NULL,
+                    hypothesis_id TEXT,
+                    action TEXT NOT NULL,
+                    author TEXT NOT NULL,
+                    prev_score INTEGER,
+                    new_score INTEGER,
+                    timestamp TEXT NOT NULL
+                )
+            """)
+
+            # LLM logs table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS llm_logs (
+                    id TEXT PRIMARY KEY,
+                    agent TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    prompt TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    validation_result TEXT NOT NULL
+                )
+            """)
+
+            conn.commit()
+
+    def _seed_demo_data(self):
+        demo_developers = [
+            ("dev-001", "ТОО Алатау Строй ДЕМО", "123456789012", "+77011112233"),
+            ("dev-002", "ТОО Астана Курылыс ДЕМО", "234567890123", "+77012223344"),
+            ("dev-003", "ТОО Гранд Бийлдер ДЕМО", "345678901234", "+77013334455"),
+            ("dev-004", "ТОО Шымкент Инвест ДЕМО", "456789012355", "+77014445566"),
+            ("dev-005", "ТОО Капитал Строй ДЕМО", "567890123456", "+77015556677"),
+            ("dev-006", "ТОО Нура Девелопмент ДЕМО", "678901234567", "+77016667788"),
+            ("dev-007", "ТОО Самрук Хоумс ДЕМО", "789012345678", "+77017778899"),
+            ("dev-008", "ТОО Актобе Строй ДЕМО", "890123456789", "+77018889900"),
+        ]
+
+        demo_complexes = [
+            ("c-001", "ЖК Алатау Премиум", "dev-001", "ул. Абая 150", "Бостандыкский р-н", "Алматы", 0, "green"),
+            ("c-002", "ЖК Есиль Ривер", "dev-002", "ул. Кабанбай батыра 25", "Есильский р-н", "Астана", 0, "green"),
+            ("c-003", "ЖК Байтерек Тауэрс", "dev-003", "пр. Тауелсиздик 10", "р-н Алматы", "Астана", 0, "green"),
+            ("c-004", "ЖК Шымкент Сити", "dev-004", "мкр. Нурсат", "Каратауский р-н", "Шымкент", 0, "green"),
+            ("c-005", "ЖК Арман", "dev-005", "ул. Достык 85", "Медеуский р-н", "Алматы", 0, "green"),
+            ("c-006", "ЖК Нура", "dev-006", "ул. Сыганак 40", "Есильский р-н", "Астана", 0, "green"),
+            ("c-007", "ЖК Астана Плаза", "dev-007", "пр. Мангилик Ел 55", "Есильский р-н", "Астана", 0, "green"),
+            ("c-008", "ЖК Актюбинск Сити", "dev-008", "пр. Абилкайыр хана", "Центр", "Актобе", 0, "green"),
+        ]
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            for dev in demo_developers:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO developers (id, name, bin, contact) VALUES (?, ?, ?, ?)
+                """, dev)
+            for cplx in demo_complexes:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO complexes (id, name, developer_id, address, district, city, risk_score, risk_zone)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, cplx)
             conn.commit()
 
     def save_ad(self, ad: RawAd) -> bool:
-        """
-        Saves ad to DB with deduplication check.
-        Returns True if saved, False if duplicate.
-        """
         with self._get_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -66,8 +174,29 @@ class AdRepository:
                 conn.commit()
                 return True
             except sqlite3.IntegrityError:
-                # Duplicate entry (dedup_hash or id exists)
                 return False
+
+    def get_ad(self, ad_id: str) -> Optional[RawAd]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM ads WHERE id = ?", (ad_id,))
+            r = cursor.fetchone()
+            if not r:
+                return None
+            return RawAd(
+                id=r["id"],
+                platform=r["platform"],
+                account=r["account"],
+                url=r["url"],
+                text=r["text"],
+                image_path=r["image_path"],
+                published_at=r["published_at"],
+                captured_at=r["captured_at"],
+                is_demo=bool(r["is_demo"]),
+                status=r["status"],
+                status_reason=r["status_reason"],
+                dedup_hash=r["dedup_hash"]
+            )
 
     def get_ads(
         self,
@@ -113,3 +242,188 @@ class AdRepository:
                 )
                 ads.append(ad)
             return ads
+
+    def save_hypothesis(self, hyp: Dict[str, Any]) -> str:
+        hyp_id = hyp.get("id") or f"hyp-{uuid.uuid4().hex[:8]}"
+        created_at = hyp.get("created_at") or datetime.datetime.now(datetime.timezone.utc).isoformat()
+        payload_json = json.dumps(hyp.get("payload_json", {}), ensure_ascii=False)
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO hypotheses (
+                    id, ad_id, type, title, description, evidence_quote,
+                    confidence, source, status, payload_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                hyp_id,
+                hyp["ad_id"],
+                hyp["type"],
+                hyp["title"],
+                hyp.get("description", ""),
+                hyp.get("evidence_quote", ""),
+                float(hyp["confidence"]),
+                hyp["source"],
+                hyp.get("status", "pending"),
+                payload_json,
+                created_at
+            ))
+            conn.commit()
+        return hyp_id
+
+    def get_hypotheses_by_ad(self, ad_id: str) -> List[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM hypotheses WHERE ad_id = ? ORDER BY created_at DESC", (ad_id,))
+            rows = cursor.fetchall()
+            results = []
+            for r in rows:
+                p_json = json.loads(r["payload_json"]) if r["payload_json"] else {}
+                results.append({
+                    "id": r["id"],
+                    "ad_id": r["ad_id"],
+                    "type": r["type"],
+                    "title": r["title"],
+                    "description": r["description"],
+                    "evidence_quote": r["evidence_quote"],
+                    "confidence": r["confidence"],
+                    "source": r["source"],
+                    "status": r["status"],
+                    "payload": p_json,
+                    "created_at": r["created_at"]
+                })
+            return results
+
+    def get_hypothesis(self, hyp_id: str) -> Optional[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM hypotheses WHERE id = ?", (hyp_id,))
+            r = cursor.fetchone()
+            if not r:
+                return None
+            p_json = json.loads(r["payload_json"]) if r["payload_json"] else {}
+            return {
+                "id": r["id"],
+                "ad_id": r["ad_id"],
+                "type": r["type"],
+                "title": r["title"],
+                "description": r["description"],
+                "evidence_quote": r["evidence_quote"],
+                "confidence": r["confidence"],
+                "source": r["source"],
+                "status": r["status"],
+                "payload": p_json,
+                "created_at": r["created_at"]
+            }
+
+    def update_hypothesis_status(self, hyp_id: str, status: str) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE hypotheses SET status = ? WHERE id = ?", (status, hyp_id))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def save_audit_log(self, ad_id: str, hypothesis_id: Optional[str], action: str, author: str, prev_score: int, new_score: int):
+        log_id = f"audit-{uuid.uuid4().hex[:8]}"
+        ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO audit_logs (id, ad_id, hypothesis_id, action, author, prev_score, new_score, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (log_id, ad_id, hypothesis_id, action, author, prev_score, new_score, ts))
+            conn.commit()
+
+    def get_audit_logs(self, ad_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        query = "SELECT * FROM audit_logs WHERE 1=1"
+        params = []
+        if ad_id:
+            query += " AND ad_id = ?"
+            params.append(ad_id)
+        query += " ORDER BY timestamp DESC"
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    def save_llm_log(self, agent: str, model: str, prompt: str, response: str, validation_result: str):
+        log_id = f"llm-{uuid.uuid4().hex[:8]}"
+        ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO llm_logs (id, agent, model, prompt, response, timestamp, validation_result)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (log_id, agent, model, prompt, response, ts, validation_result))
+            conn.commit()
+
+    def get_complexes(self, query: Optional[str] = None) -> List[Dict[str, Any]]:
+        sql = """
+            SELECT c.*, d.name as developer_name, d.bin as developer_bin
+            FROM complexes c
+            LEFT JOIN developers d ON c.developer_id = d.id
+        """
+        params = []
+        if query:
+            sql += " WHERE c.name LIKE ? OR c.address LIKE ? OR c.district LIKE ? OR d.name LIKE ?"
+            q = f"%{query}%"
+            params = [q, q, q, q]
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    def get_complex_by_id(self, complex_id: str) -> Optional[Dict[str, Any]]:
+        sql = """
+            SELECT c.*, d.name as developer_name, d.bin as developer_bin
+            FROM complexes c
+            LEFT JOIN developers d ON c.developer_id = d.id
+            WHERE c.id = ?
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (complex_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def update_complex_risk(self, complex_id: str, risk_score: int, risk_zone: str):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE complexes SET risk_score = ?, risk_zone = ? WHERE id = ?", (risk_score, risk_zone, complex_id))
+            conn.commit()
+
+    def get_developer(self, bin_or_name: str) -> Optional[Dict[str, Any]]:
+        sql = "SELECT * FROM developers WHERE bin = ? OR name LIKE ?"
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (bin_or_name, f"%{bin_or_name}%"))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_related_ads(self, account: Optional[str]) -> List[RawAd]:
+        if not account or account == "Unknown":
+            return []
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM ads WHERE account = ?", (account,))
+            rows = cursor.fetchall()
+            return [
+                RawAd(
+                    id=r["id"],
+                    platform=r["platform"],
+                    account=r["account"],
+                    url=r["url"],
+                    text=r["text"],
+                    image_path=r["image_path"],
+                    published_at=r["published_at"],
+                    captured_at=r["captured_at"],
+                    is_demo=bool(r["is_demo"]),
+                    status=r["status"],
+                    status_reason=r["status_reason"],
+                    dedup_hash=r["dedup_hash"]
+                ) for r in rows
+            ]
