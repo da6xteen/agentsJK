@@ -21,10 +21,13 @@
         .ad-text { white-space: pre-wrap; font-size: 0.95rem; line-height: 1.5; }
         .ad-img-preview { max-height: 220px; object-fit: cover; border-radius: 6px; }
         .quote-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 8px 12px; font-size: 0.9rem; margin-top: 6px; border-radius: 0 4px 4px 0; }
+        .quote-highlight { background-color: #ffe082; border: 2px solid #ffb300; padding: 4px; border-radius: 4px; font-weight: 600; }
         .badge-green { background-color: #198754; color: white; }
         .badge-yellow { background-color: #ffc107; color: black; }
         .badge-red { background-color: #dc3545; color: white; }
         .ai-tag { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .clickable-points { cursor: pointer; text-decoration: underline; font-weight: bold; }
+        .disclaimer-banner { background-color: #fff8f8; border: 1px dashed #dc3545; color: #b02a37; font-size: 0.85rem; padding: 8px 12px; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -36,78 +39,145 @@
                 <span>SAQ QURYLYS</span>
             </a>
             <span class="navbar-text text-light small">
-                <i class="bi bi-cpu me-1"></i> Агент 1: Сборщик | Агент 2: Сопоставитель и Экстрактор платежей
+                <i class="bi bi-cpu me-1"></i> Агент 1: Сборщик | Агент 2: Сопоставитель | Агент 3: Объяснитель риска & Реестр
             </span>
         </div>
     </nav>
 
     <div class="container-fluid px-4 my-4">
 
-        <!-- Controls & Filters Bar -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <div class="row g-3 align-items-center">
-                    <div class="col-md-5 d-flex gap-2">
-                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#collectModal">
-                            <i class="bi bi-cloud-arrow-down me-1"></i> Собрать объявления
-                        </button>
-                        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#manualModal">
-                            <i class="bi bi-plus-lg me-1"></i> Добавить вручную
-                        </button>
+        <!-- Main Navigation Tabs -->
+        <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold" id="ads-tab" data-bs-toggle="tab" data-bs-target="#ads-pane" type="button">
+                    <i class="bi bi-newspaper me-1"></i> Лента публикаций
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold" id="complexes-tab" data-bs-toggle="tab" data-bs-target="#complexes-pane" type="button" onclick="loadComplexes()">
+                    <i class="bi bi-building me-1"></i> Реестр ЖК и Сигнальные карточки (Агент 3)
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="mainTabsContent">
+
+            <!-- TAB 1: ADS FEED -->
+            <div class="tab-pane fade show active" id="ads-pane" role="tabpanel">
+
+                <!-- Controls & Filters Bar -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-5 d-flex gap-2">
+                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#collectModal">
+                                    <i class="bi bi-cloud-arrow-down me-1"></i> Собрать объявления
+                                </button>
+                                <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#manualModal">
+                                    <i class="bi bi-plus-lg me-1"></i> Добавить вручную
+                                </button>
+                            </div>
+
+                            <div class="col-md-7">
+                                <form id="filterForm" class="row g-2 align-items-center justify-content-md-end">
+                                    <div class="col-auto">
+                                        <label class="col-form-label fw-bold small">Площадка:</label>
+                                    </div>
+                                    <div class="col-auto">
+                                        <select class="form-select form-select-sm" id="filterPlatform" onchange="loadAds()">
+                                            <option value="">Все площадки</option>
+                                            <option value="krisha">Krisha.kz</option>
+                                            <option value="telegram">Telegram</option>
+                                            <option value="instagram">Instagram</option>
+                                            <option value="manual">Manual</option>
+                                            <option value="demo">Demo</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-auto">
+                                        <label class="col-form-label fw-bold small ms-2">Статус:</label>
+                                    </div>
+                                    <div class="col-auto">
+                                        <select class="form-select form-select-sm" id="filterStatus" onchange="loadAds()">
+                                            <option value="">Все статусы</option>
+                                            <option value="new">Новые (Релевантные)</option>
+                                            <option value="filtered">Filtered (Отфильтрованы)</option>
+                                            <option value="error">Error (Ошибка)</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-auto">
+                                        <div class="form-check ms-2">
+                                            <input class="form-check-input" type="checkbox" id="filterDemo" onchange="loadAds()">
+                                            <label class="form-check-label small" for="filterDemo">
+                                                Только ДЕМО
+                                            </label>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
                     </div>
+                </div>
 
-                    <div class="col-md-7">
-                        <form id="filterForm" class="row g-2 align-items-center justify-content-md-end">
-                            <div class="col-auto">
-                                <label class="col-form-label fw-bold small">Площадка:</label>
-                            </div>
-                            <div class="col-auto">
-                                <select class="form-select form-select-sm" id="filterPlatform" onchange="loadAds()">
-                                    <option value="">Все площадки</option>
-                                    <option value="krisha">Krisha.kz</option>
-                                    <option value="telegram">Telegram</option>
-                                    <option value="instagram">Instagram</option>
-                                    <option value="manual">Manual</option>
-                                    <option value="demo">Demo</option>
-                                </select>
-                            </div>
+                <!-- Ad Feed Container -->
+                <div id="adFeed" class="row g-3">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Загрузка ленты публикаций...</p>
+                    </div>
+                </div>
 
-                            <div class="col-auto">
-                                <label class="col-form-label fw-bold small ms-2">Статус:</label>
-                            </div>
-                            <div class="col-auto">
-                                <select class="form-select form-select-sm" id="filterStatus" onchange="loadAds()">
-                                    <option value="">Все статусы</option>
-                                    <option value="new">Новые (Релевантные)</option>
-                                    <option value="filtered">Filtered (Отфильтрованы)</option>
-                                    <option value="error">Error (Ошибка)</option>
-                                </select>
-                            </div>
+            </div>
 
-                            <div class="col-auto">
-                                <div class="form-check ms-2">
-                                    <input class="form-check-input" type="checkbox" id="filterDemo" onchange="loadAds()">
-                                    <label class="form-check-label small" for="filterDemo">
-                                        Только ДЕМО
-                                    </label>
-                                </div>
+            <!-- TAB 2: COMPLEXES & SIGNAL CARDS -->
+            <div class="tab-pane fade" id="complexes-pane" role="tabpanel">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                        <h5 class="mb-0"><i class="bi bi-card-checklist me-2 text-primary"></i>Мониторинг жилых комплексов (ЖК) и Объяснения рисков</h5>
+                        <div class="col-md-4">
+                            <input type="text" class="form-control form-control-sm" id="complexSearch" placeholder="Поиск ЖК по названию или застройщику..." onkeyup="loadComplexes()">
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="complexesList" class="row g-3">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary"></div>
+                                <p class="mt-2 text-muted">Загрузка реестра объектов...</p>
                             </div>
-                        </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Modal: Signal Card / Explanation Modal -->
+    <div class="modal fade" id="signalCardModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title" id="signalModalTitle"><i class="bi bi-shield-lock me-2"></i>Сигнальная карточка объекта</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="signalModalBody">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary"></div>
+                        <p class="mt-2 text-muted">Формирование объяснения риска (Агент 3)...</p>
+                    </div>
+                </div>
+                <div class="modal-footer d-flex justify-content-between bg-light">
+                    <span class="badge bg-warning text-dark"><i class="bi bi-info-circle me-1"></i>ДЕМО режим</span>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
                     </div>
                 </div>
             </div>
         </div>
-
-        <!-- Ad Feed Container -->
-        <div id="adFeed" class="row g-3">
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Загрузка...</span>
-                </div>
-                <p class="mt-2 text-muted">Загрузка ленты публикаций...</p>
-            </div>
-        </div>
-
     </div>
 
     <!-- Modal: Collector Run -->
@@ -219,7 +289,6 @@
                 const response = await fetch(url);
                 const ads = await response.json();
                 renderAds(ads);
-                // Load existing hypotheses for loaded ads
                 ads.forEach(ad => loadHypotheses(ad.id));
             } catch (err) {
                 console.error("Error loading ads:", err);
@@ -361,15 +430,16 @@
             hypotheses.forEach(h => {
                 const isLlm = h.source === 'llm';
                 const sourceBadge = isLlm
-                    ? `<span class="badge bg-purple text-white ai-tag bg-primary"><i class="bi bi-stars me-1"></i>Гипотеза ИИ</span>`
-                    : `<span class="badge bg-secondary ai-tag"><i class="bi bi-gear me-1"></i>Rules</span>`;
+                    ? `<span class="badge bg-primary ai-tag"><i class="bi bi-stars me-1"></i>Гипотеза ИИ</span>`
+                    : `<span class="badge bg-success ai-tag"><i class="bi bi-check-circle me-1"></i>Факт</span>`;
 
-                let statusBadge = `<span class="badge bg-warning text-dark ms-1">Ожидает</span>`;
-                if (h.status === 'accepted') statusBadge = `<span class="badge bg-success ms-1">Принято</span>`;
+                let statusBadge = `<span class="badge bg-warning text-dark ms-1"><i class="bi bi-question-circle me-1"></i>Нужна проверка</span>`;
+                if (h.status === 'accepted') statusBadge = `<span class="badge bg-success ms-1">Принято (Факт)</span>`;
                 if (h.status === 'rejected') statusBadge = `<span class="badge bg-secondary ms-1">Отклонено</span>`;
 
+                const quoteId = `quote-${h.id}`;
                 const quoteHtml = h.evidence_quote
-                    ? `<div class="quote-box"><strong>Цитата:</strong> "${escapeHtml(h.evidence_quote)}"</div>`
+                    ? `<div class="quote-box" id="${quoteId}"><strong>Доказательство (Цитата):</strong> "${escapeHtml(h.evidence_quote)}"</div>`
                     : '';
 
                 let buttonsHtml = '';
@@ -377,7 +447,7 @@
                     buttonsHtml = `
                         <div class="mt-2 d-flex gap-2">
                             <button class="btn btn-sm btn-success py-0 px-2" onclick="acceptHypothesis('${h.id}', '${adId}')">
-                                <i class="bi bi-check-lg me-1"></i>Принять
+                                <i class="bi bi-check-lg me-1"></i>Принять (Подтвердить)
                             </button>
                             <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="rejectHypothesis('${h.id}', '${adId}')">
                                 <i class="bi bi-x-lg me-1"></i>Отклонить
@@ -449,6 +519,304 @@
                 }
             } catch (err) {
                 alert('Сетевая ошибка: ' + err.message);
+            }
+        }
+
+        // LOAD COMPLEXES & RENDER SIGNAL CARDS
+        async function loadComplexes() {
+            const container = document.getElementById('complexesList');
+            const search = document.getElementById('complexSearch')?.value || '';
+
+            try {
+                const response = await fetch(`/api/complexes?q=${encodeURIComponent(search)}`);
+                const cplxList = await response.json();
+
+                if (!cplxList || cplxList.length === 0) {
+                    container.innerHTML = `<div class="text-center py-4 text-muted">Жилые комплексы не найдены</div>`;
+                    return;
+                }
+
+                container.innerHTML = cplxList.map(c => {
+                    let zoneBadge = 'bg-success';
+                    if (c.risk_zone === 'yellow') zoneBadge = 'bg-warning text-dark';
+                    if (c.risk_zone === 'red') zoneBadge = 'bg-danger';
+
+                    let reviewBadge = '<span class="badge bg-secondary">Ожидает проверки</span>';
+                    if (c.review_status === 'confirmed') reviewBadge = '<span class="badge bg-success">Подтверждено</span>';
+                    if (c.review_status === 'returned') reviewBadge = '<span class="badge bg-danger">Возвращено</span>';
+
+                    return `
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                    <span class="badge ${zoneBadge}">${(c.risk_zone || 'GREEN').toUpperCase()} (${c.risk_score || 0} б.)</span>
+                                    ${reviewBadge}
+                                </div>
+                                <div class="card-body">
+                                    <h5 class="card-title text-primary">${escapeHtml(c.name)}</h5>
+                                    <p class="card-text small text-muted mb-1">
+                                        <i class="bi bi-building me-1"></i>Застройщик: <strong>${escapeHtml(c.developer_name || 'Не указан')}</strong>
+                                    </p>
+                                    <p class="card-text small text-muted">
+                                        <i class="bi bi-geo-alt me-1"></i>${escapeHtml(c.city)}, ${escapeHtml(c.address)}
+                                    </p>
+                                </div>
+                                <div class="card-footer bg-white border-top-0">
+                                    <button class="btn btn-sm btn-primary w-100" onclick="openSignalCard('${c.id}')">
+                                        <i class="bi bi-shield-check me-1"></i>Сигнальная карточка & Объяснение
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                container.innerHTML = `<div class="alert alert-danger">Ошибка загрузки ЖК: ${err.message}</div>`;
+            }
+        }
+
+        async function openSignalCard(complexId) {
+            const modalEl = new bootstrap.Modal(document.getElementById('signalCardModal'));
+            const modalBody = document.getElementById('signalModalBody');
+            modalEl.show();
+
+            modalBody.innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-2 text-muted">Сбор данных и генерация объяснения Агента 3...</p>
+                </div>`;
+
+            try {
+                const response = await fetch(`/api/complexes/${complexId}/explanation`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    modalBody.innerHTML = `<div class="alert alert-danger">${data.detail || 'Ошибка загрузки'}</div>`;
+                    return;
+                }
+
+                renderSignalCard(data);
+            } catch (err) {
+                modalBody.innerHTML = `<div class="alert alert-danger">Сетевая ошибка: ${err.message}</div>`;
+            }
+        }
+
+        function renderSignalCard(data) {
+            const body = document.getElementById('signalModalBody');
+
+            let zoneBadge = 'bg-success';
+            if (data.risk_zone === 'yellow') zoneBadge = 'bg-warning text-dark';
+            if (data.risk_zone === 'red') zoneBadge = 'bg-danger';
+
+            let redZoneWarning = '';
+            if (data.awaiting_human_confirmation) {
+                redZoneWarning = `
+                    <div class="alert alert-danger d-flex align-items-center fw-bold py-2 mb-3">
+                        <i class="bi bi-exclamation-triangle-fill fs-4 me-2"></i>
+                        <span>ОЖИДАЕТ ПОДТВЕРЖДЕНИЯ ЧЕЛОВЕКОМ: Высокая степень риска требует обязательной личной проверки аналитиком МИО!</span>
+                    </div>
+                `;
+            }
+
+            let reviewStatusBadge = '<span class="badge bg-secondary ms-2">Ожидает проверки</span>';
+            if (data.review_status === 'confirmed') reviewStatusBadge = '<span class="badge bg-success ms-2">Подтверждено аналитиком</span>';
+            if (data.review_status === 'returned') reviewStatusBadge = '<span class="badge bg-danger ms-2">Возвращено на доработку</span>';
+
+            let legalBadge = '<span class="badge bg-warning text-dark">Нужна проверка</span>';
+            if (data.legal_basis_status === 'CONFIRMED_VALID') legalBadge = '<span class="badge bg-success">Подтверждено (CONFIRMED_VALID)</span>';
+            if (data.legal_basis_status === 'ABSENCE_ESTABLISHED') legalBadge = '<span class="badge bg-danger">Отсутствие установлено (ABSENCE_ESTABLISHED)</span>';
+
+            // Permits Table HTML
+            let permitsHtml = '';
+            if (data.permits_table && data.permits_table.length > 0) {
+                permitsHtml = data.permits_table.map(p => `
+                    <tr>
+                        <td>${escapeHtml(p.permit_type_name || p.permit_type_code)}</td>
+                        <td><strong>${escapeHtml(p.number)}</strong></td>
+                        <td>
+                            ${p.status === 'active' ? '<span class="badge bg-success">Действует</span>' : (p.status === 'expired' ? '<span class="badge bg-warning text-dark">Просрочено</span>' : '<span class="badge bg-danger">Отозвано</span>')}
+                        </td>
+                        <td>${escapeHtml(p.source)}</td>
+                        <td><small>${formatDate(p.verified_at)}</small></td>
+                    </tr>
+                `).join('');
+            } else {
+                permitsHtml = `<tr><td colspan="5" class="text-center text-muted py-2">В реестре разрешений записи не найдены (R1 = 0, пометка «Нужна проверка»)</td></tr>`;
+            }
+
+            let absenceHtml = '';
+            if (data.absence_records && data.absence_records.length > 0) {
+                absenceHtml = data.absence_records.map(a => `
+                    <div class="alert alert-danger py-2 mb-2 small">
+                        <strong><i class="bi bi-x-circle me-1"></i>Акт отсутствия основания:</strong> ${escapeHtml(a.note || 'Установлено отсутствие разрешения')} | Источник: ${escapeHtml(a.source)} | Дата: ${formatDate(a.verified_at)}
+                    </div>
+                `).join('');
+            }
+
+            // Confirmed Factors
+            const explanation = data.explanation || {};
+            const factorExplanations = explanation.factor_explanations || [];
+            let factorsListHtml = '';
+            if (factorExplanations.length > 0) {
+                factorsListHtml = factorExplanations.map(fe => `
+                    <li class="mb-2">
+                        <span class="badge bg-danger me-1">+${fe.points} б.</span>
+                        <strong class="clickable-points text-primary" onclick="highlightEvidence('${fe.evidence_ids ? fe.evidence_ids[0] : ''}')">[${escapeHtml(fe.code)}]</strong>:
+                        <span>${escapeHtml(fe.text)}</span>
+                        ${fe.evidence_ids && fe.evidence_ids.length > 0 ? `<small class="text-muted d-block ms-3">Evidence ID: ${fe.evidence_ids.join(', ')}</small>` : ''}
+                    </li>
+                `).join('');
+            } else {
+                factorsListHtml = `<li class="text-muted">Подтверждённые факторы риска отсутствуют</li>`;
+            }
+
+            // Needs Verification
+            const needsVerif = explanation.needs_verification || [];
+            let needsVerifHtml = '';
+            if (needsVerif.length > 0) {
+                needsVerifHtml = needsVerif.map(nv => `
+                    <li class="mb-1"><span class="badge bg-warning text-dark me-1">Нужна проверка</span> ${escapeHtml(nv)}</li>
+                `).join('');
+            } else {
+                needsVerifHtml = `<li class="text-muted">Дополнительные проверки не требуются</li>`;
+            }
+
+            body.innerHTML = `
+                ${redZoneWarning}
+
+                <div class="d-flex justify-content-between align-items-start mb-3 border-bottom pb-2">
+                    <div>
+                        <h4 class="text-primary mb-1">${escapeHtml(data.complex_name)}</h4>
+                        <p class="text-muted mb-0"><i class="bi bi-building me-1"></i>Застройщик: <strong>${escapeHtml(data.developer_name || 'Не указан')}</strong> ${reviewStatusBadge}</p>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge ${zoneBadge} fs-6 px-3 py-2">
+                            <i class="bi bi-shield-exclamation me-1"></i>Балл риска: ${data.risk_score} б. (${data.risk_zone.toUpperCase()})
+                        </span>
+                        <div class="small text-muted mt-1">${escapeHtml(data.risk_label)}</div>
+                    </div>
+                </div>
+
+                <!-- Risk Explanation Block (Agent 3 Output) -->
+                <div class="card mb-3 border-primary shadow-sm">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
+                        <span class="fw-bold"><i class="bi bi-stars me-2"></i>Объяснение риска (Агент 3 — Risk Explainer)</span>
+                        <span class="badge bg-light text-primary ai-tag">Гипотеза ИИ / Анализ</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="lead fs-6 fw-normal mb-3">${escapeHtml(explanation.summary || '')}</p>
+
+                        <h6 class="fw-bold text-dark"><i class="bi bi-list-check me-1"></i>Подтверждённые факторы риска (Кликабельны):</h6>
+                        <ul class="ps-3 mb-3">${factorsListHtml}</ul>
+
+                        <h6 class="fw-bold text-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Требуется проверка аналитиком:</h6>
+                        <ul class="ps-3 mb-0">${needsVerifHtml}</ul>
+                    </div>
+                </div>
+
+                <!-- Permits Table & Legal Basis Check -->
+                <div class="card mb-3 shadow-sm">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                        <span class="fw-bold"><i class="bi bi-file-earmark-text me-2"></i>Реестр разрешений и правовых оснований</span>
+                        <div>${legalBadge}</div>
+                    </div>
+                    <div class="card-body p-0">
+                        ${absenceHtml}
+                        <table class="table table-hover table-striped mb-0 small">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Тип основания</th>
+                                    <th>Номер разрешения</th>
+                                    <th>Статус</th>
+                                    <th>Источник данных</th>
+                                    <th>Дата проверки</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${permitsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Action Controls for Analyst -->
+                <div class="card bg-light border-0 p-3 d-flex flex-row justify-content-between align-items-center">
+                    <div>
+                        <a href="/api/complexes/${data.complex_id}/print" target="_blank" class="btn btn-outline-dark me-2">
+                            <i class="bi bi-printer me-1"></i>Печать / PDF версией
+                        </a>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-danger" onclick="returnComplex('${data.complex_id}')">
+                            <i class="bi bi-arrow-return-left me-1"></i>Вернуть (Отклонить)
+                        </button>
+                        <button class="btn btn-success px-4" onclick="confirmComplex('${data.complex_id}')">
+                            <i class="bi bi-check-circle me-1"></i>Подтвердить
+                        </button>
+                    </div>
+                </div>
+
+                <div class="disclaimer-banner text-center mt-3">
+                    <i class="bi bi-shield-lock me-1"></i><strong>Дисклеймер:</strong> ${escapeHtml(data.disclaimer)}
+                </div>
+            `;
+        }
+
+        async function confirmComplex(complexId) {
+            const note = prompt("Комментарий аналитика при подтверждении (необязательно):", "Проверено, факты подтверждены");
+            if (note === null) return;
+
+            try {
+                const res = await fetch(`/api/complexes/${complexId}/confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ author: "Аналитик MIO", note: note })
+                });
+
+                if (res.ok) {
+                    alert("Статус карточки сохранён: Подтверждено аналитиком.");
+                    openSignalCard(complexId);
+                    loadComplexes();
+                } else {
+                    alert("Ошибка подтверждения");
+                }
+            } catch (err) {
+                alert("Сетевая ошибка: " + err.message);
+            }
+        }
+
+        async function returnComplex(complexId) {
+            const note = prompt("Причина возврата / замечание аналитика:", "Требуются дополнительные документы");
+            if (note === null) return;
+
+            try {
+                const res = await fetch(`/api/complexes/${complexId}/return`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ author: "Аналитик MIO", note: note })
+                });
+
+                if (res.ok) {
+                    alert("Статус карточки сохранён: Возвращено.");
+                    openSignalCard(complexId);
+                    loadComplexes();
+                } else {
+                    alert("Ошибка отзыва");
+                }
+            } catch (err) {
+                alert("Сетевая ошибка: " + err.message);
+            }
+        }
+
+        function highlightEvidence(evidenceId) {
+            if (!evidenceId) return;
+            const el = document.getElementById(`quote-${evidenceId}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.classList.add('quote-highlight');
+                setTimeout(() => el.classList.remove('quote-highlight'), 3000);
+            } else {
+                alert(`Доказательство ID: ${evidenceId} привязано к официальной проверке реестра МИО/КЖК`);
             }
         }
 

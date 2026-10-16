@@ -1,0 +1,123 @@
+{
+  "permit_types": [
+    {
+      "code": "single_operator_guarantee",
+      "name": "Гарантия Единого оператора (КЖК)",
+      "legal_basis_note": "Статья 8 Закона РК 'О долевом участии в жилищном строительстве' (Гарантия АО 'КЖК')"
+    },
+    {
+      "code": "mio_permit",
+      "name": "Разрешение МИО",
+      "legal_basis_note": "Статья 9 Закона РК 'О долевом участии в жилищном строительстве' (Разрешение местного исполнительного органа)"
+    },
+    {
+      "code": "bank_project_financing",
+      "name": "Участие в проекте банка второго уровня",
+      "legal_basis_note": "Статья 10 Закона РК 'О долевом участии в жилищном строительстве' (Проектное финансирование БВУ)"
+    }
+  ],
+  "permits": [
+    {
+      "id": "permit-001",
+      "developer_id": "dev-001",
+      "complex_id": "c-001",
+      "permit_type_code": "mio_permit",
+      "number": "№ 102/2023-ДЕМО",
+      "issued_at": "2023-01-10T00:00:00Z",
+      "valid_until": "2024-01-10T00:00:00Z",
+      "status": "expired",
+      "source": "Реестр МИО г. Алматы ДЕМО",
+      "verified_at": "2025-02-01T10:00:00Z",
+      "is_demo": true
+    },
+    {
+      "id": "permit-003",
+      "developer_id": "dev-003",
+      "complex_id": "c-003",
+      "permit_type_code": "single_operator_guarantee",
+      "number": "№ КЖК-884/2024-ДЕМО",
+      "issued_at": "2024-06-01T00:00:00Z",
+      "valid_until": "2026-06-01T00:00:00Z",
+      "status": "active",
+      "source": "Реестр АО 'КЖК' ДЕМО",
+      "verified_at": "2025-02-05T12:00:00Z",
+      "is_demo": true
+    },
+    {
+      "id": "permit-004",
+      "developer_id": "dev-004",
+      "complex_id": "c-004",
+      "permit_type_code": "mio_permit",
+      "number": "№ 445/2024-ДЕМО",
+      "issued_at": "2024-03-15T00:00:00Z",
+      "valid_until": "2026-03-15T00:00:00Z",
+      "status": "active",
+      "source": "Реестр МИО г. Шымкент ДЕМО",
+      "verified_at": "2025-02-08T09:00:00Z",
+      "is_demo": true
+    },
+    {
+      "id": "permit-006",
+      "developer_id": "dev-006",
+      "complex_id": "c-006",
+      "permit_type_code": "mio_permit",
+      "number": "№ 12345/2024-ДЕМО",
+      "issued_at": "2024-01-01T00:00:00Z",
+      "valid_until": "2026-01-01T00:00:00Z",
+      "status": "active",
+      "source": "Реестр МИО г. Астана ДЕМО",
+      "verified_at": "2025-02-10T11:00:00Z",
+      "is_demo": true
+    },
+    {
+      "id": "permit-007",
+      "developer_id": "dev-007",
+      "complex_id": "c-007",
+      "permit_type_code": "mio_permit",
+      "number": "№ 777/2023-ОТОЗВАНО",
+      "issued_at": "2023-05-01T00:00:00Z",
+      "valid_until": "2025-05-01T00:00:00Z",
+      "status": "revoked",
+      "source": "Реестр МИО г. Астана ДЕМО",
+      "verified_at": "2025-02-01T15:00:00Z",
+      "is_demo": true
+    },
+    {
+      "id": "permit-008a",
+      "developer_id": "dev-008",
+      "complex_id": "c-008",
+      "permit_type_code": "mio_permit",
+      "number": "№ 001/2022-ИСТЕКЛО",
+      "issued_at": "2022-01-01T00:00:00Z",
+      "valid_until": "2023-01-01T00:00:00Z",
+      "status": "expired",
+      "source": "Реестр МИО Актюбинской обл. ДЕМО",
+      "verified_at": "2025-01-10T08:00:00Z",
+      "is_demo": true
+    },
+    {
+      "id": "permit-008b",
+      "developer_id": "dev-008",
+      "complex_id": "c-008",
+      "permit_type_code": "single_operator_guarantee",
+      "number": "№ КЖК-990/2024-ДЕМО",
+      "issued_at": "2024-05-01T00:00:00Z",
+      "valid_until": "2026-05-01T00:00:00Z",
+      "status": "active",
+      "source": "Реестр АО 'КЖК' ДЕМО",
+      "verified_at": "2025-02-02T10:00:00Z",
+      "is_demo": true
+    }
+  ],
+  "absence_records": [
+    {
+      "id": "abs-002",
+      "complex_id": "c-002",
+      "source": "Официальная проверка МИО г. Астана ДЕМО",
+      "verified_at": "2025-02-10T10:00:00Z",
+      "result": "absence_established",
+      "note": "Установлено отсутствие разрешения МИО, гарантии КЖК и договора БВУ",
+      "is_demo": true
+    }
+  ]
+}
