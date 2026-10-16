@@ -12,6 +12,8 @@ from agents.collector.service import CollectorService
 from agents.collector.filter import check_relevance
 from agents.matcher.payment_extractor import PaymentExtractor
 from agents.matcher.complex_matcher import ComplexMatcher
+from agents.explainer import RiskExplainerAgent
+from agents.permits import check_legal_basis
 from agents.scoring import calculate_risk_score
 from database.repository import AdRepository
 
@@ -26,6 +28,7 @@ repo = AdRepository()
 collector_service = CollectorService()
 payment_extractor = PaymentExtractor(repo=repo)
 complex_matcher = ComplexMatcher(repo=repo)
+risk_explainer = RiskExplainerAgent(repo=repo)
 
 @app.get("/", response_class=HTMLResponse)
 def index_page():
@@ -325,6 +328,209 @@ def get_complex_details(complex_id: str):
     if not cplx:
         raise HTTPException(status_code=404, detail="ЖК не найден")
     return cplx
+
+@app.get("/api/complexes/{complex_id}/explanation")
+def get_complex_explanation(complex_id: str, as_of_date: Optional[str] = Query(None)):
+    cplx = repo.get_complex_by_id(complex_id)
+    if not cplx:
+        raise HTTPException(status_code=404, detail="ЖК не найден")
+
+    try:
+        explanation_data = risk_explainer.explain(complex_id, as_of_date=as_of_date)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка формирования объяснения: {str(e)}")
+
+    permits_table = repo.get_permits_by_complex(complex_id)
+    absence_records = repo.get_absence_records_by_complex(complex_id)
+    review_status = cplx.get("review_status") or "pending"
+
+    # Red zone requires human confirmation
+    awaiting_human = (explanation_data["risk_zone"] == "red" and review_status != "confirmed")
+
+    return {
+        "complex_id": complex_id,
+        "complex_name": cplx["name"],
+        "developer_name": cplx.get("developer_name"),
+        "legal_basis_status": explanation_data["legal_basis"]["status"],
+        "legal_basis_label": explanation_data["legal_basis"]["status_label"],
+        "permits_table": permits_table,
+        "absence_records": absence_records,
+        "risk_score": explanation_data["risk_score"],
+        "risk_zone": explanation_data["risk_zone"],
+        "risk_label": explanation_data["risk_label"],
+        "review_status": review_status,
+        "reviewed_by": cplx.get("reviewed_by"),
+        "reviewed_at": cplx.get("reviewed_at"),
+        "awaiting_human_confirmation": awaiting_human,
+        "explanation": explanation_data["explanation"],
+        "confirmed_factors": explanation_data["confirmed_factors"],
+        "disclaimer": explanation_data["explanation"].get("disclaimer", "Оценка риска — не юридическое заключение.")
+    }
+
+class ComplexActionRequest(BaseModel):
+    author: Optional[str] = "Аналитик MIO"
+    note: Optional[str] = None
+
+@app.post("/api/complexes/{complex_id}/confirm")
+def confirm_complex(complex_id: str, req: ComplexActionRequest = ComplexActionRequest()):
+    cplx = repo.get_complex_by_id(complex_id)
+    if not cplx:
+        raise HTTPException(status_code=404, detail="ЖК не найден")
+
+    prev_score = cplx.get("risk_score", 0)
+    repo.update_complex_review(
+        complex_id=complex_id,
+        review_status="confirmed",
+        author=req.author or "Аналитик MIO",
+        note=req.note
+    )
+
+    repo.save_audit_log(
+        ad_id=f"complex-{complex_id}",
+        hypothesis_id=None,
+        action="confirm_complex",
+        author=req.author or "Аналитик MIO",
+        prev_score=prev_score,
+        new_score=prev_score
+    )
+
+    return {
+        "status": "success",
+        "action": "confirm_complex",
+        "complex_id": complex_id,
+        "review_status": "confirmed"
+    }
+
+@app.post("/api/complexes/{complex_id}/return")
+def return_complex(complex_id: str, req: ComplexActionRequest = ComplexActionRequest()):
+    cplx = repo.get_complex_by_id(complex_id)
+    if not cplx:
+        raise HTTPException(status_code=404, detail="ЖК не найден")
+
+    prev_score = cplx.get("risk_score", 0)
+    repo.update_complex_review(
+        complex_id=complex_id,
+        review_status="returned",
+        author=req.author or "Аналитик MIO",
+        note=req.note
+    )
+
+    repo.save_audit_log(
+        ad_id=f"complex-{complex_id}",
+        hypothesis_id=None,
+        action="return_complex",
+        author=req.author or "Аналитик MIO",
+        prev_score=prev_score,
+        new_score=prev_score
+    )
+
+    return {
+        "status": "success",
+        "action": "return_complex",
+        "complex_id": complex_id,
+        "review_status": "returned"
+    }
+
+@app.get("/api/complexes/{complex_id}/print", response_class=HTMLResponse)
+def print_complex_report(complex_id: str):
+    cplx = repo.get_complex_by_id(complex_id)
+    if not cplx:
+        raise HTTPException(status_code=404, detail="ЖК не найден")
+
+    explanation_data = risk_explainer.explain(complex_id)
+    permits = repo.get_permits_by_complex(complex_id)
+
+    permits_rows = ""
+    for p in permits:
+        permits_rows += f"""
+        <tr>
+            <td>{p.get('permit_type_name', p.get('permit_type_code'))}</td>
+            <td>{p.get('number')}</td>
+            <td>{p.get('status')}</td>
+            <td>{p.get('source')}</td>
+            <td>{p.get('verified_at')}</td>
+        </tr>
+        """
+    if not permits_rows:
+        permits_rows = "<tr><td colspan='5' class='text-muted'>Разрешения в реестре не найдены</td></tr>"
+
+    factors_rows = ""
+    for f in explanation_data.get("confirmed_factors", []):
+        factors_rows += f"<li><strong>[{f.get('code')}] +{f.get('points')} б.:</strong> {f.get('text')}</li>"
+    if not factors_rows:
+        factors_rows = "<li>Подтверждённые факторы риска отсутствуют.</li>"
+
+    expl = explanation_data.get("explanation", {})
+    summary = expl.get("summary", "")
+    disclaimer = expl.get("disclaimer", "Оценка риска — не юридическое заключение.")
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <title>Сигнальная карточка — {cplx['name']}</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+        <style>
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }}
+            .disclaimer-box {{ border: 2px dashed #dc3545; background-color: #fff8f8; padding: 12px; margin-top: 20px; border-radius: 6px; }}
+            @media print {{ .no-print {{ display: none; }} }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>SAQ QURYLYS — Сигнальная карточка объекта</h2>
+                <button class="btn btn-primary no-print" onclick="window.print()">Печать / PDF</button>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h4 class="mb-0">{cplx['name']}</h4>
+                </div>
+                <div class="card-body">
+                    <p><strong>Застройщик:</strong> {cplx.get('developer_name', 'Не указан')} (БИН: {cplx.get('developer_bin', '—')})</p>
+                    <p><strong>Адрес:</strong> {cplx.get('city', '')}, {cplx.get('district', '')}, {cplx.get('address', '')}</p>
+                    <p><strong>Итоговый риск:</strong> {explanation_data['risk_score']} баллов (Зона: {explanation_data['risk_zone'].upper()})</p>
+                    <p><strong>Статус проверки разрешений:</strong> {explanation_data['legal_basis']['status_label']}</p>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-light fw-bold">Объяснение риска (Агент 3)</div>
+                <div class="card-body">
+                    <p>{summary}</p>
+                    <h6 class="fw-bold mt-3">Подтверждённые факторы:</h6>
+                    <ul>{factors_rows}</ul>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-light fw-bold">Таблица разрешений и правовых оснований</div>
+                <div class="card-body p-0">
+                    <table class="table table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th>Тип основания</th>
+                                <th>Номер</th>
+                                <th>Статус</th>
+                                <th>Источник</th>
+                                <th>Дата проверки</th>
+                            </tr>
+                        </thead>
+                        <tbody>{permits_rows}</tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="disclaimer-box text-center text-danger fw-bold">
+                {disclaimer}
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return html_content
 
 @app.get("/api/audit-logs")
 def list_audit_logs(ad_id: Optional[str] = Query(None)):

@@ -50,3 +50,29 @@ def test_api_create_manual_ad():
     assert data["platform"] == "manual"
     assert data["account"] == "Тестовый Аналитик"
     assert data["status"] == "new"
+
+def test_api_complex_explanation_and_actions():
+    # 1. Get complex explanation
+    response = client.get("/api/complexes/c-001/explanation")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["complex_id"] == "c-001"
+    assert "explanation" in data
+    assert "permits_table" in data
+    assert "disclaimer" in data
+
+    # 2. Confirm complex review
+    conf_res = client.post("/api/complexes/c-001/confirm", json={"author": "Аналитик МИО", "note": "Проверено"})
+    assert conf_res.status_code == 200
+    assert conf_res.json()["review_status"] == "confirmed"
+
+    # 3. Return complex review
+    ret_res = client.post("/api/complexes/c-001/return", json={"author": "Аналитик МИО", "note": "Нужно доп. сведение"})
+    assert ret_res.status_code == 200
+    assert ret_res.json()["review_status"] == "returned"
+
+    # 4. Print report
+    print_res = client.get("/api/complexes/c-001/print")
+    assert print_res.status_code == 200
+    assert "SAQ QURYLYS" in print_res.text
+    assert "Оценка риска — не юридическое заключение." in print_res.text

@@ -61,7 +61,53 @@ class AdRepository:
                     city TEXT,
                     risk_score INTEGER DEFAULT 0,
                     risk_zone TEXT DEFAULT 'green',
+                    review_status TEXT DEFAULT 'pending',
+                    reviewed_by TEXT,
+                    reviewed_at TEXT,
+                    analyst_note TEXT,
                     FOREIGN KEY(developer_id) REFERENCES developers(id)
+                )
+            """)
+
+            # Permit types table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS permit_types (
+                    code TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    legal_basis_note TEXT
+                )
+            """)
+
+            # Permits table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS permits (
+                    id TEXT PRIMARY KEY,
+                    developer_id TEXT,
+                    complex_id TEXT NOT NULL,
+                    permit_type_code TEXT NOT NULL,
+                    number TEXT NOT NULL,
+                    issued_at TEXT,
+                    valid_until TEXT,
+                    status TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    verified_at TEXT NOT NULL,
+                    is_demo INTEGER NOT NULL DEFAULT 1,
+                    FOREIGN KEY(complex_id) REFERENCES complexes(id),
+                    FOREIGN KEY(permit_type_code) REFERENCES permit_types(code)
+                )
+            """)
+
+            # Absence records table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS absence_records (
+                    id TEXT PRIMARY KEY,
+                    complex_id TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    verified_at TEXT NOT NULL,
+                    result TEXT NOT NULL,
+                    note TEXT,
+                    is_demo INTEGER NOT NULL DEFAULT 1,
+                    FOREIGN KEY(complex_id) REFERENCES complexes(id)
                 )
             """)
 
@@ -146,6 +192,44 @@ class AdRepository:
                     INSERT OR IGNORE INTO complexes (id, name, developer_id, address, district, city, risk_score, risk_zone)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, cplx)
+
+            # Seed permits from data/permits.json if exists
+            permits_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "permits.json")
+            if os.path.exists(permits_file):
+                try:
+                    with open(permits_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+
+                    for pt in data.get("permit_types", []):
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO permit_types (code, name, legal_basis_note)
+                            VALUES (?, ?, ?)
+                        """, (pt["code"], pt["name"], pt.get("legal_basis_note", "")))
+
+                    for p in data.get("permits", []):
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO permits (
+                                id, developer_id, complex_id, permit_type_code, number,
+                                issued_at, valid_until, status, source, verified_at, is_demo
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            p["id"], p.get("developer_id"), p["complex_id"], p["permit_type_code"],
+                            p["number"], p.get("issued_at"), p.get("valid_until"), p["status"],
+                            p["source"], p["verified_at"], 1 if p.get("is_demo", True) else 0
+                        ))
+
+                    for a in data.get("absence_records", []):
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO absence_records (
+                                id, complex_id, source, verified_at, result, note, is_demo
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            a["id"], a["complex_id"], a["source"], a["verified_at"],
+                            a["result"], a.get("note", ""), 1 if a.get("is_demo", True) else 0
+                        ))
+                except Exception as e:
+                    print(f"Error seeding permits.json: {e}")
+
             conn.commit()
 
     def save_ad(self, ad: RawAd) -> bool:
@@ -395,6 +479,46 @@ class AdRepository:
             cursor = conn.cursor()
             cursor.execute("UPDATE complexes SET risk_score = ?, risk_zone = ? WHERE id = ?", (risk_score, risk_zone, complex_id))
             conn.commit()
+
+    def update_complex_review(self, complex_id: str, review_status: str, author: str, note: Optional[str] = None):
+        ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE complexes
+                SET review_status = ?, reviewed_by = ?, reviewed_at = ?, analyst_note = ?
+                WHERE id = ?
+            """, (review_status, author, ts, note or "", complex_id))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_permit_types(self) -> List[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM permit_types")
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    def get_permits_by_complex(self, complex_id: str) -> List[Dict[str, Any]]:
+        sql = """
+            SELECT p.*, pt.name as permit_type_name, pt.legal_basis_note
+            FROM permits p
+            LEFT JOIN permit_types pt ON p.permit_type_code = pt.code
+            WHERE p.complex_id = ?
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (complex_id,))
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    def get_absence_records_by_complex(self, complex_id: str) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM absence_records WHERE complex_id = ?"
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, (complex_id,))
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
 
     def get_developer(self, bin_or_name: str) -> Optional[Dict[str, Any]]:
         sql = "SELECT * FROM developers WHERE bin = ? OR name LIKE ?"
