@@ -1,0 +1,17 @@
+krisha:
+  base_url: "https://krisha.kz"
+  queries:
+    - "новостройки Алматы"
+    - "ЖК Астана строящийся"
+    - "квартиры в рассрочку от застройщика"
+telegram:
+  channels:
+    - "qazaq_stroy_news"
+    - "astana_real_estate_demo"
+    - "almaty_novostroyki_official"
+    - "stroy_kz_invest"
+instagram:
+  accounts:
+    - "bi_group_demo"
+    - "sensata_group_demo"
+    - "bazis_a_demo"

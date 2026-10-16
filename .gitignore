@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+saq_qurylys.db
+uploads/*
+!uploads/.gitkeep

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAQ QURYLYS — Мониторинг рисков долевого строительства</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .navbar-brand { font-weight: 700; letter-spacing: 0.5px; }
+        .badge-demo { background-color: #ffc107; color: #000; font-weight: 600; }
+        .badge-krisha { background-color: #ff5722; color: white; }
+        .badge-telegram { background-color: #0088cc; color: white; }
+        .badge-instagram { background-color: #e1306c; color: white; }
+        .badge-manual { background-color: #6c757d; color: white; }
+        .ad-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .ad-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .ad-text { white-space: pre-wrap; font-size: 0.95rem; line-height: 1.5; }
+        .ad-img-preview { max-height: 220px; object-fit: cover; border-radius: 6px; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <i class="bi bi-shield-exclamation text-warning fs-3 me-2"></i>
+                <span>SAQ QURYLYS</span>
+            </a>
+            <span class="navbar-text text-light">
+                <i class="bi bi-cpu me-1"></i> Агент 1: Сборщик объявлений (Raw Ad Collector)
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4 my-4">
+
+        <!-- Controls & Filters Bar -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-4 d-flex gap-2">
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#collectModal">
+                            <i class="bi bi-cloud-arrow-down me-1"></i> Собрать объявления
+                        </button>
+                        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#manualModal">
+                            <i class="bi bi-plus-lg me-1"></i> Добавить вручную / Скриншот
+                        </button>
+                    </div>
+
+                    <div class="col-md-8">
+                        <form id="filterForm" class="row g-2 align-items-center justify-content-md-end">
+                            <div class="col-auto">
+                                <label class="col-form-label fw-bold">Площадка:</label>
+                            </div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="filterPlatform" onchange="loadAds()">
+                                    <option value="">Все площадки</option>
+                                    <option value="krisha">Krisha.kz</option>
+                                    <option value="telegram">Telegram</option>
+                                    <option value="instagram">Instagram</option>
+                                    <option value="manual">Manual</option>
+                                    <option value="demo">Demo</option>
+                                </select>
+                            </div>
+
+                            <div class="col-auto">
+                                <label class="col-form-label fw-bold ms-2">Статус:</label>
+                            </div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="filterStatus" onchange="loadAds()">
+                                    <option value="">Все статусы</option>
+                                    <option value="new">Новые (Релевантные)</option>
+                                    <option value="filtered">Filtered (Отфильтрованы)</option>
+                                    <option value="error">Error (Ошибка)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-auto">
+                                <div class="form-check ms-2">
+                                    <input class="form-check-input" type="checkbox" id="filterDemo" onchange="loadAds()">
+                                    <label class="form-check-label" for="filterDemo">
+                                        Только ДЕМО
+                                    </label>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ad Feed Container -->
+        <div id="adFeed" class="row g-3">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Загрузка...</span>
+                </div>
+                <p class="mt-2 text-muted">Загрузка ленты публикаций...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modal: Collector Run -->
+    <div class="modal fade" id="collectModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-robot me-2"></i>Запуск адаптера сбора</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="collectorForm">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Адаптер источника</label>
+                            <select class="form-select" id="collectorSource" required>
+                                <option value="demo">DemoAdapter (13 фиктивных объявлений)</option>
+                                <option value="krisha">KrishaAdapter (HTML парсер по URL)</option>
+                                <option value="telegram">TelegramAdapter (Public Web Preview / t.me)</option>
+                                <option value="instagram">InstagramAdapter (Импорт / API Stub)</option>
+                                <option value="manual">ManualAdapter</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Запрос или URL источника</label>
+                            <input type="text" class="form-control" id="collectorQuery" placeholder="например: qazaq_stroy_news или https://krisha.kz/a/show/990001" value="qazaq_stroy_news">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="runCollector()">
+                        <i class="bi bi-play-fill me-1"></i>Запустить сбор
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Manual Ad Input -->
+    <div class="modal fade" id="manualModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Ручной ввод / Скриншот</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="manualForm">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Площадка</label>
+                            <select class="form-select" id="manualPlatform">
+                                <option value="manual">Manual</option>
+                                <option value="instagram">Instagram</option>
+                                <option value="telegram">Telegram</option>
+                                <option value="krisha">Krisha.kz</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Аккаунт / Источник</label>
+                            <input type="text" class="form-control" id="manualAccount" placeholder="@account_name or Аналитик">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">URL публикации</label>
+                            <input type="url" class="form-control" id="manualUrl" placeholder="https://...">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Текст объявления *</label>
+                            <textarea class="form-control" id="manualText" rows="4" required placeholder="Введите рекламный текст..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Скриншот публикации (изображение)</label>
+                            <input type="file" class="form-control" id="manualFile" accept="image/*">
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="manualIsDemo">
+                            <label class="form-check-label" for="manualIsDemo">
+                                Пометить как ДЕМО
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-success" onclick="submitManualAd()">
+                        <i class="bi bi-check-circle me-1"></i>Сохранить публикацию
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAds();
+        });
+
+        async function loadAds() {
+            const platform = document.getElementById('filterPlatform').value;
+            const status = document.getElementById('filterStatus').value;
+            const isDemo = document.getElementById('filterDemo').checked;
+
+            let url = '/api/ads?';
+            if (platform) url += `platform=${encodeURIComponent(platform)}&`;
+            if (status) url += `status=${encodeURIComponent(status)}&`;
+            if (isDemo) url += `is_demo=true&`;
+
+            try {
+                const response = await fetch(url);
+                const ads = await response.json();
+                renderAds(ads);
+            } catch (err) {
+                console.error("Error loading ads:", err);
+                document.getElementById('adFeed').innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        Ошибка загрузки ленты публикаций: ${err.message}
+                    </div>`;
+            }
+        }
+
+        function renderAds(ads) {
+            const feed = document.getElementById('adFeed');
+            if (!ads || ads.length === 0) {
+                feed.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox text-muted display-4"></i>
+                        <p class="mt-2 text-muted">Публикаций не найдено</p>
+                    </div>`;
+                return;
+            }
+
+            feed.innerHTML = ads.map(ad => {
+                const badgeClass = `badge-${ad.platform}`;
+                const demoBadge = ad.is_demo ? `<span class="badge badge-demo me-1">ДЕМО</span>` : '';
+                const statusBadge = ad.status === 'filtered'
+                    ? `<span class="badge bg-warning text-dark me-1" title="${escapeHtml(ad.status_reason || '')}">Filtered</span>`
+                    : (ad.status === 'error' ? `<span class="badge bg-danger me-1">Error</span>` : `<span class="badge bg-success me-1">New</span>`);
+
+                const imageHtml = ad.image_path
+                    ? `<div class="mt-2 text-center"><img src="${escapeHtml(ad.image_path)}" class="img-fluid ad-img-preview" alt="Screenshot"></div>`
+                    : '';
+
+                return `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 shadow-sm ad-card">
+                            <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                                <div>
+                                    ${demoBadge}
+                                    <span class="badge ${badgeClass} text-uppercase">${escapeHtml(ad.platform)}</span>
+                                    ${statusBadge}
+                                </div>
+                                <small class="text-muted" title="UTC Time">
+                                    <i class="bi bi-clock me-1"></i>${formatDate(ad.captured_at)}
+                                </small>
+                            </div>
+                            <div class="card-body">
+                                <div class="fw-bold mb-1 text-primary text-truncate">
+                                    <i class="bi bi-person-circle me-1"></i>${escapeHtml(ad.account || 'Unknown')}
+                                </div>
+                                <p class="card-text ad-text mt-2">${escapeHtml(ad.text)}</p>
+                                ${imageHtml}
+                            </div>
+                            <div class="card-footer bg-white border-top-0 d-flex justify-content-between align-items-center">
+                                <a href="${escapeHtml(ad.url)}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>Источник
+                                </a>
+                                <small class="text-muted">ID: ${escapeHtml(ad.id)}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function runCollector() {
+            const source = document.getElementById('collectorSource').value;
+            const query = document.getElementById('collectorQuery').value;
+
+            try {
+                const response = await fetch('/api/collector/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source: source, query_or_url: query })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    const modalEl = document.getElementById('collectModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    modal.hide();
+
+                    alert(`Сбор завершен! Сохранено новых: ${data.count}, Дубликатов: ${data.duplicates}`);
+                    loadAds();
+                } else {
+                    alert(`Ошибка сбора: ${data.detail || 'Неизвестная ошибка'}`);
+                }
+            } catch (err) {
+                alert(`Сетевая ошибка: ${err.message}`);
+            }
+        }
+
+        async function submitManualAd() {
+            const platform = document.getElementById('manualPlatform').value;
+            const account = document.getElementById('manualAccount').value;
+            const url = document.getElementById('manualUrl').value;
+            const text = document.getElementById('manualText').value;
+            const isDemo = document.getElementById('manualIsDemo').checked;
+            const fileInput = document.getElementById('manualFile');
+
+            if (!text.trim()) {
+                alert('Текст объявления обязателен');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('platform', platform);
+            formData.append('account', account);
+            formData.append('url', url);
+            formData.append('text', text);
+            formData.append('is_demo', isDemo);
+
+            if (fileInput.files.length > 0) {
+                formData.append('file', fileInput.files[0]);
+            }
+
+            try {
+                const response = await fetch('/api/ads', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const modalEl = document.getElementById('manualModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    modal.hide();
+                    document.getElementById('manualForm').reset();
+                    loadAds();
+                } else {
+                    const err = await response.json();
+                    alert(`Ошибка: ${err.detail || 'Не удалось сохранить'}`);
+                }
+            } catch (err) {
+                alert(`Сетевая ошибка: ${err.message}`);
+            }
+        }
+
+        function formatDate(isoStr) {
+            if (!isoStr) return '';
+            try {
+                const d = new Date(isoStr);
+                return d.toISOString().replace('T', ' ').substring(0, 16) + ' UTC';
+            } catch {
+                return isoStr;
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;")
+                      .replace(/"/g, "&quot;")
+                      .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
